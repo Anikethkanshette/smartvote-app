@@ -1,0 +1,299 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Settings, Users, CheckCircle, LogOut, AlertCircle, Plus, Calendar } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getUsers, getElections, createElection, updateUser } from "@/lib/local-storage"
+
+export default function AdminDashboard() {
+  const { userData, logout } = useAuth()
+  const router = useRouter()
+  const [candidates, setCandidates] = useState<any[]>([])
+  const [voters, setVoters] = useState<any[]>([])
+  const [branchElections, setBranchElections] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      // Fetch pending candidates
+      const users = getUsers()
+      const candidatesData = users.filter((user) => user.role === "candidate" && user.approved === false)
+      setCandidates(candidatesData)
+
+      // Fetch voters
+      const votersData = users.filter((user) => user.role === "voter")
+      setVoters(votersData)
+
+      // Fetch branch elections
+      const electionsData = getElections()
+      setBranchElections(electionsData)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+    }
+  }
+
+  const approveCandidate = async (candidateId: string) => {
+    setLoading(true)
+    try {
+      const updatedUser = updateUser(candidateId, { approved: true })
+      if (updatedUser) {
+        setMessage("Candidate approved successfully!")
+        fetchData()
+      } else {
+        setMessage("Error approving candidate")
+      }
+    } catch (error: any) {
+      setMessage("Error approving candidate: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  const createBranchElection = async (branch: string, endDate: string) => {
+    setLoading(true)
+    try {
+      createElection({
+        name: `${branch.toUpperCase()} Branch Election`,
+        startDate: new Date().toISOString(),
+        endDate: endDate ? new Date(endDate).toISOString() : null,
+        status: "ongoing",
+        createdBy: userData?.uid || "admin",
+      })
+
+      setMessage(`Election created for ${branch.toUpperCase()} branch!`)
+      fetchData()
+    } catch (error: any) {
+      setMessage("Error creating election: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-blue-600 rounded-full">
+              <Settings className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-blue-800">Admin Dashboard</h1>
+              <p className="text-gray-600">Manage elections, candidates, and voter data</p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await logout()
+                localStorage.removeItem("currentUser")
+                router.push("/login")
+              } catch (error) {
+                console.error("Logout error:", error)
+              }
+            }}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+
+        {message && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stats Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Candidates</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{candidates.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Registered Voters</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{voters.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Branch Elections</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{branchElections.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Approve Candidates */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5" />
+                <span>Approve Candidates</span>
+              </CardTitle>
+              <CardDescription>Review and approve candidate applications</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {candidates.map((candidate) => (
+                <div key={candidate.uid} className="flex justify-between items-center p-3 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">{candidate.username}</h4>
+                    <p className="text-sm text-gray-600">
+                      {candidate.branch} - {candidate.prn}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => approveCandidate(candidate.uid)} disabled={loading}>
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              ))}
+              {candidates.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No pending candidate approvals</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Manage Branch Elections */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5" />
+                <span>Branch Elections</span>
+              </CardTitle>
+              <CardDescription>Create and manage branch-specific elections</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CreateBranchElectionDialog onCreate={createBranchElection} loading={loading} />
+              <div className="mt-4 space-y-2">
+                {branchElections
+                  .filter((e) => e.status === "ongoing")
+                  .map((election) => (
+                    <div key={election.id} className="p-3 border rounded-lg">
+                      <h4 className="font-medium">{election.name}</h4>
+                      <p className="text-sm text-gray-600">
+                        Started: {new Date(election.startDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* View Voters */}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Registered Voters</span>
+              </CardTitle>
+              <CardDescription>View all registered voters in the system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
+                {voters.map((voter) => (
+                  <div key={voter.uid} className="p-3 border rounded-lg">
+                    <h4 className="font-medium">{voter.username}</h4>
+                    <p className="text-sm text-gray-600">
+                      {voter.branch} - {voter.prn}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {voters.length === 0 && <p className="text-gray-500 text-center py-4">No registered voters found</p>}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CreateBranchElectionDialog({
+  onCreate,
+  loading,
+}: { onCreate: (branch: string, endDate: string) => void; loading: boolean }) {
+  const [branch, setBranch] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [open, setOpen] = useState(false)
+
+  const handleSubmit = () => {
+    if (branch.trim()) {
+      onCreate(branch, endDate)
+      setBranch("")
+      setEndDate("")
+      setOpen(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="w-full bg-blue-600 hover:bg-blue-700">
+          <Plus className="h-4 w-4 mr-2" />
+          Create Branch Election
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Branch Election</DialogTitle>
+          <DialogDescription>Create a new election for a specific branch.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="branch">Branch Name</Label>
+            <Input
+              id="branch"
+              placeholder="e.g., CSE, ECE, MECH"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="end-date">End Date (Optional)</Label>
+            <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          <Button onClick={handleSubmit} disabled={loading || !branch.trim()} className="w-full">
+            {loading ? "Creating..." : "Create Election"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
