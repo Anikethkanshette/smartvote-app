@@ -1,0 +1,242 @@
+// Local storage utilities for managing data without Firebase
+
+export interface User {
+  uid: string
+  email: string
+  username: string
+  role: "super_admin" | "admin" | "voter" | "candidate"
+  prn?: string
+  branch?: string
+  approved: boolean
+  createdAt: string
+  manifesto?: string
+  experience?: string
+  goals?: string
+}
+
+export interface Election {
+  id: string
+  name: string
+  startDate: string
+  endDate?: string
+  status: "ongoing" | "ended"
+  createdBy: string
+  createdAt: string
+}
+
+export interface Vote {
+  id: string
+  voterId: string
+  electionId: string
+  candidateId: string
+  timestamp: string
+}
+
+// Initialize default data
+const initializeDefaultData = () => {
+  if (typeof window === "undefined") return
+
+  // Default users
+  const defaultUsers: User[] = [
+    {
+      uid: "super_admin_1",
+      email: "aniketh@smartvote.com",
+      username: "aniketh kanshette",
+      role: "super_admin",
+      approved: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      uid: "admin_1",
+      email: "sujit@smartvote.com",
+      username: "sujit kadam",
+      role: "admin",
+      approved: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      uid: "voter_1",
+      email: "dinesh@smartvote.com",
+      username: "dinesh",
+      role: "voter",
+      approved: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      uid: "candidate_1",
+      email: "aakhib@smartvote.com",
+      username: "aakhib",
+      role: "candidate",
+      approved: true,
+      createdAt: new Date().toISOString(),
+      manifesto: "I will work for better student facilities and transparent governance.",
+      experience: "Class representative for 2 years, member of student council.",
+      goals: "Improve library facilities, organize more cultural events, enhance campus WiFi.",
+    },
+  ]
+
+  // Default elections
+  const defaultElections: Election[] = [
+    {
+      id: "election_1",
+      name: "Student Council Elections 2024",
+      startDate: new Date().toISOString(),
+      status: "ongoing",
+      createdBy: "super_admin_1",
+      createdAt: new Date().toISOString(),
+    },
+  ]
+
+  // Initialize if not exists
+  if (!localStorage.getItem("smartvote_users")) {
+    localStorage.setItem("smartvote_users", JSON.stringify(defaultUsers))
+  }
+  if (!localStorage.getItem("smartvote_elections")) {
+    localStorage.setItem("smartvote_elections", JSON.stringify(defaultElections))
+  }
+  if (!localStorage.getItem("smartvote_votes")) {
+    localStorage.setItem("smartvote_votes", JSON.stringify([]))
+  }
+}
+
+// User management
+export const getUsers = (): User[] => {
+  if (typeof window === "undefined") return []
+  initializeDefaultData()
+  return JSON.parse(localStorage.getItem("smartvote_users") || "[]")
+}
+
+export const getUserById = (uid: string): User | null => {
+  const users = getUsers()
+  return users.find((user) => user.uid === uid) || null
+}
+
+export const getUserByUsername = (username: string): User | null => {
+  const users = getUsers()
+  return users.find((user) => user.username.toLowerCase() === username.toLowerCase()) || null
+}
+
+export const createUser = (userData: Omit<User, "uid" | "createdAt">): User => {
+  const users = getUsers()
+  const newUser: User = {
+    ...userData,
+    uid: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+  }
+  users.push(newUser)
+  localStorage.setItem("smartvote_users", JSON.stringify(users))
+  return newUser
+}
+
+export const updateUser = (uid: string, updates: Partial<User>): User | null => {
+  const users = getUsers()
+  const userIndex = users.findIndex((user) => user.uid === uid)
+  if (userIndex === -1) return null
+
+  users[userIndex] = { ...users[userIndex], ...updates }
+  localStorage.setItem("smartvote_users", JSON.stringify(users))
+  return users[userIndex]
+}
+
+// Election management
+export const getElections = (): Election[] => {
+  if (typeof window === "undefined") return []
+  initializeDefaultData()
+  return JSON.parse(localStorage.getItem("smartvote_elections") || "[]")
+}
+
+export const createElection = (electionData: Omit<Election, "id" | "createdAt">): Election => {
+  const elections = getElections()
+  const newElection: Election = {
+    ...electionData,
+    id: `election_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    createdAt: new Date().toISOString(),
+  }
+  elections.push(newElection)
+  localStorage.setItem("smartvote_elections", JSON.stringify(elections))
+  return newElection
+}
+
+export const updateElection = (id: string, updates: Partial<Election>): Election | null => {
+  const elections = getElections()
+  const electionIndex = elections.findIndex((election) => election.id === id)
+  if (electionIndex === -1) return null
+
+  elections[electionIndex] = { ...elections[electionIndex], ...updates }
+  localStorage.setItem("smartvote_elections", JSON.stringify(elections))
+  return elections[electionIndex]
+}
+
+// Vote management
+export const getVotes = (): Vote[] => {
+  if (typeof window === "undefined") return []
+  initializeDefaultData()
+  return JSON.parse(localStorage.getItem("smartvote_votes") || "[]")
+}
+
+export const castVote = (voteData: Omit<Vote, "id" | "timestamp">): Vote => {
+  const votes = getVotes()
+  const newVote: Vote = {
+    ...voteData,
+    id: `vote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    timestamp: new Date().toISOString(),
+  }
+  votes.push(newVote)
+  localStorage.setItem("smartvote_votes", JSON.stringify(votes))
+  return newVote
+}
+
+export const hasUserVoted = (voterId: string, electionId: string): boolean => {
+  const votes = getVotes()
+  return votes.some((vote) => vote.voterId === voterId && vote.electionId === electionId)
+}
+
+export const getVotesByElection = (electionId: string): Vote[] => {
+  const votes = getVotes()
+  return votes.filter((vote) => vote.electionId === electionId)
+}
+
+export const getVotesForCandidate = (candidateId: string, electionId: string): Vote[] => {
+  const votes = getVotes()
+  return votes.filter((vote) => vote.candidateId === candidateId && vote.electionId === electionId)
+}
+
+// Authentication helpers
+export const authenticateUser = (username: string, password: string): User | null => {
+  // Hardcoded credentials
+  const hardcodedCredentials: Record<string, { password: string; role: string }> = {
+    "aniketh kanshette": { password: "Aniketh@12", role: "super_admin" },
+    "sujit kadam": { password: "123456789", role: "admin" },
+    "vaibhav kale": { password: "123456789", role: "admin" },
+    dinesh: { password: "123456789", role: "voter" },
+    aakhib: { password: "123456", role: "candidate" },
+  }
+
+  const normalizedUsername = username.toLowerCase()
+  const credentials = hardcodedCredentials[normalizedUsername]
+
+  if (credentials && credentials.password === password) {
+    let user = getUserByUsername(username)
+    if (!user) {
+      // Create user if doesn't exist
+      user = createUser({
+        email: `${normalizedUsername.replace(" ", "")}@smartvote.com`,
+        username: normalizedUsername,
+        role: credentials.role as any,
+        approved: true,
+      })
+    }
+    return user
+  }
+
+  return null
+}
+
+// Clear all data (for testing)
+export const clearAllData = () => {
+  if (typeof window === "undefined") return
+  localStorage.removeItem("smartvote_users")
+  localStorage.removeItem("smartvote_elections")
+  localStorage.removeItem("smartvote_votes")
+  localStorage.removeItem("currentUser")
+}
