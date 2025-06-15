@@ -1,0 +1,213 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ArrowLeft, Vote, CheckCircle, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+const positions = [
+  {
+    title: "President",
+    candidates: [
+      { id: "p1", name: "aniketh kanshette", department: "Computer Science", image: "/placeholder.svg?height=60&width=60" },
+      {
+        id: "p2",
+        name: "Michael Chen",
+        department: "Business Administration",
+        image: "/placeholder.svg?height=60&width=60",
+      },
+      {
+        id: "p3",
+        name: "Alex Thompson",
+        department: "Political Science",
+        image: "/placeholder.svg?height=60&width=60",
+      },
+      { id: "p4", name: "Jessica Park", department: "Economics", image: "/placeholder.svg?height=60&width=60" },
+    ],
+  },
+  {
+    title: "Vice President",
+    candidates: [
+      { id: "vp1", name: "Emily Rodriguez", department: "Psychology", image: "/placeholder.svg?height=60&width=60" },
+      { id: "vp2", name: "James Wilson", department: "Engineering", image: "/placeholder.svg?height=60&width=60" },
+      { id: "vp3", name: "Lisa Chang", department: "Biology", image: "/placeholder.svg?height=60&width=60" },
+    ],
+  },
+  {
+    title: "Secretary",
+    candidates: [
+      { id: "s1", name: "David Kim", department: "Engineering", image: "/placeholder.svg?height=60&width=60" },
+      { id: "s2", name: "Maria Garcia", department: "Literature", image: "/placeholder.svg?height=60&width=60" },
+      { id: "s3", name: "Ryan O'Connor", department: "History", image: "/placeholder.svg?height=60&width=60" },
+      { id: "s4", name: "Priya Patel", department: "Mathematics", image: "/placeholder.svg?height=60&width=60" },
+      { id: "s5", name: "Tom Anderson", department: "Chemistry", image: "/placeholder.svg?height=60&width=60" },
+    ],
+  },
+  {
+    title: "Treasurer",
+    candidates: [
+      { id: "t1", name: "Kevin Lee", department: "Finance", image: "/placeholder.svg?height=60&width=60" },
+      { id: "t2", name: "Amanda Foster", department: "Accounting", image: "/placeholder.svg?height=60&width=60" },
+    ],
+  },
+]
+
+export default function VotePage() {
+  const [votes, setVotes] = useState<Record<string, string>>({})
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleVoteChange = (position: string, candidateId: string) => {
+    setVotes((prev) => ({
+      ...prev,
+      [position]: candidateId,
+    }))
+  }
+
+  const handleSubmit = async () => {
+    if (Object.keys(votes).length !== positions.length) {
+      alert("Please vote for all positions before submitting.")
+      return
+    }
+
+    setIsSubmitting(true)
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    setIsSubmitted(true)
+    setIsSubmitting(false)
+  }
+
+  if (isSubmitted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+            <CardTitle className="text-2xl text-green-600">Vote Submitted Successfully!</CardTitle>
+            <CardDescription>Thank you for participating in the Student Council Elections 2024.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-gray-600">
+              Your vote has been recorded securely and anonymously. Results will be announced on January 31st.
+            </p>
+            <div className="space-y-2">
+              <Link href="/results">
+                <Button className="w-full">View Live Results</Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outline" className="w-full">
+                  Return to Home
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <Link href="/" className="flex items-center space-x-2">
+              <ArrowLeft className="h-5 w-5" />
+              <span>Back to Home</span>
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900">Cast Your Vote</h1>
+            <div className="text-sm text-gray-600">
+              {Object.keys(votes).length}/{positions.length} completed
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Important:</strong> You can only vote once. Please review your choices carefully before submitting.
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-8">
+          {positions.map((position) => (
+            <Card key={position.title}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  {position.title}
+                  {votes[position.title] && <CheckCircle className="h-5 w-5 text-green-600" />}
+                </CardTitle>
+                <CardDescription>Select one candidate for {position.title}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={votes[position.title] || ""}
+                  onValueChange={(value) => handleVoteChange(position.title, value)}
+                >
+                  <div className="grid gap-4">
+                    {position.candidates.map((candidate) => (
+                      <div
+                        key={candidate.id}
+                        className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-gray-50"
+                      >
+                        <RadioGroupItem value={candidate.id} id={candidate.id} />
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={candidate.image || "/placeholder.svg"} alt={candidate.name} />
+                          <AvatarFallback>
+                            {candidate.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Label htmlFor={candidate.id} className="flex-1 cursor-pointer">
+                          <div>
+                            <div className="font-medium">{candidate.name}</div>
+                            <div className="text-sm text-gray-600">{candidate.department}</div>
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">Review Your Votes</h3>
+          <div className="space-y-2 mb-6">
+            {positions.map((position) => (
+              <div key={position.title} className="flex justify-between">
+                <span className="text-gray-600">{position.title}:</span>
+                <span className="font-medium">
+                  {votes[position.title]
+                    ? position.candidates.find((c) => c.id === votes[position.title])?.name
+                    : "Not selected"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <Button
+            onClick={handleSubmit}
+            disabled={Object.keys(votes).length !== positions.length || isSubmitting}
+            className="w-full"
+            size="lg"
+          >
+            <Vote className="mr-2 h-5 w-5" />
+            {isSubmitting ? "Submitting Vote..." : "Submit My Vote"}
+          </Button>
+        </div>
+      </main>
+    </div>
+  )
+}
