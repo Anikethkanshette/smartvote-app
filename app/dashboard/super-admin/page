@@ -1,1 +1,419 @@
 
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Crown, Calendar, Users, CheckCircle, LogOut, AlertCircle, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getUsers, getElections, createElection, updateUser, updateElection } from "@/lib/local-storage"
+
+export default function SuperAdminDashboard() {
+  const { userData, logout } = useAuth()
+  const [elections, setElections] = useState<any[]>([])
+  const [pendingAdmins, setPendingAdmins] = useState<any[]>([])
+  const [pendingCandidates, setPendingCandidates] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+  const router = useRouter()
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      // Fetch elections from local storage
+      const electionsData = getElections()
+      setElections(electionsData)
+
+      // Fetch pending admins from local storage
+      const users = getUsers()
+      const pendingAdminsData = users.filter((user) => user.role === "admin" && user.approved === false)
+      setPendingAdmins(pendingAdminsData)
+
+      // Fetch pending candidates from local storage
+      const pendingCandidatesData = users.filter((user) => user.role === "candidate" && user.approved === false)
+      setPendingCandidates(pendingCandidatesData)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      setMessage("Error loading dashboard data. Please refresh the page.")
+    }
+  }
+
+  const declareElection = async (electionName: string, endDate: string) => {
+    setLoading(true)
+    setMessage("")
+
+    try {
+      // Validate election name
+      if (!electionName.trim()) {
+        setMessage("Election name is required")
+        setLoading(false)
+        return
+      }
+
+      // Validate end date if provided
+      if (endDate && new Date(endDate) <= new Date()) {
+        setMessage("End date must be in the future")
+        setLoading(false)
+        return
+      }
+
+      createElection({
+        name: electionName.trim(),
+        startDate: new Date().toISOString(),
+        endDate: endDate ? new Date(endDate).toISOString() : null,
+        status: "ongoing",
+        createdBy: userData?.uid || "super_admin",
+      })
+
+      setMessage("Election declared successfully!")
+      fetchData()
+    } catch (error: any) {
+      console.error("Error declaring election:", error)
+      setMessage("Error declaring election: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  const approveUser = async (userId: string, userType: string) => {
+    setLoading(true)
+    setMessage("")
+
+    try {
+      const updatedUser = updateUser(userId, {
+        approved: true,
+        approvedBy: userData?.uid || "super_admin",
+        approvedAt: new Date().toISOString(),
+      })
+
+      if (updatedUser) {
+        setMessage(`${userType} approved successfully!`)
+        fetchData()
+      } else {
+        setMessage("Error approving user: User not found")
+      }
+    } catch (error: any) {
+      console.error("Error approving user:", error)
+      setMessage("Error approving user: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  const endElection = async (electionId: string) => {
+    setLoading(true)
+    setMessage("")
+
+    try {
+      const updatedElection = updateElection(electionId, {
+        status: "ended",
+        endDate: new Date().toISOString(),
+        endedBy: userData?.uid || "super_admin",
+      })
+
+      if (updatedElection) {
+        setMessage("Election ended successfully!")
+        fetchData()
+      } else {
+        setMessage("Error ending election: Election not found")
+      }
+    } catch (error: any) {
+      console.error("Error ending election:", error)
+      setMessage("Error ending election: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-red-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-red-600 rounded-full">
+              <Crown className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-red-800">Super Admin Dashboard</h1>
+              <p className="text-gray-600">Manage overall election operations</p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await logout()
+                localStorage.removeItem("currentUser")
+                router.push("/login")
+              } catch (error) {
+                console.error("Logout error:", error)
+              }
+            }}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+
+        {message && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stats Cards */}
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Elections</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{elections.filter((e) => e.status === "ongoing").length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Admins</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{pendingAdmins.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Candidates</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{pendingCandidates.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Elections</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{elections.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Declare Election */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Plus className="h-5 w-5" />
+                <span>Declare New Election</span>
+              </CardTitle>
+              <CardDescription>Create a new election for the college</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeclareElectionDialog onDeclare={declareElection} loading={loading} />
+            </CardContent>
+          </Card>
+
+          {/* Manage Elections */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5" />
+                <span>Active Elections</span>
+              </CardTitle>
+              <CardDescription>Manage ongoing elections</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {elections
+                .filter((e) => e.status === "ongoing")
+                .map((election) => (
+                  <div key={election.id} className="flex justify-between items-center p-3 border rounded-lg">
+                    <div>
+                      <h4 className="font-medium">{election.name}</h4>
+                      <p className="text-sm text-gray-600">
+                        Started: {new Date(election.startDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="destructive" onClick={() => endElection(election.id)} disabled={loading}>
+                      End Election
+                    </Button>
+                  </div>
+                ))}
+              {elections.filter((e) => e.status === "ongoing").length === 0 && (
+                <p className="text-gray-500 text-center py-4">No active elections</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Approve Admins */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Pending Admin Approvals</span>
+              </CardTitle>
+              <CardDescription>Review and approve admin requests</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingAdmins.map((admin) => (
+                <div key={admin.id} className="flex justify-between items-center p-3 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">{admin.username}</h4>
+                    <p className="text-sm text-gray-600">{admin.email}</p>
+                  </div>
+                  <Button size="sm" onClick={() => approveUser(admin.id, "Admin")} disabled={loading}>
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              ))}
+              {pendingAdmins.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No pending admin approvals</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Approve Candidates */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Pending Candidate Approvals</span>
+              </CardTitle>
+              <CardDescription>Review and approve candidate applications</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingCandidates.map((candidate) => (
+                <div key={candidate.id} className="flex justify-between items-center p-3 border rounded-lg">
+                  <div>
+                    <h4 className="font-medium">{candidate.username}</h4>
+                    <p className="text-sm text-gray-600">
+                      {candidate.branch} - {candidate.prn}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => approveUser(candidate.id, "Candidate")} disabled={loading}>
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Approve
+                  </Button>
+                </div>
+              ))}
+              {pendingCandidates.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No pending candidate approvals</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeclareElectionDialog({
+  onDeclare,
+  loading,
+}: { onDeclare: (name: string, endDate: string) => void; loading: boolean }) {
+  const [electionName, setElectionName] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [open, setOpen] = useState(false)
+  const [errors, setErrors] = useState({ name: "", date: "" })
+
+  const validateForm = () => {
+    const newErrors = { name: "", date: "" }
+
+    if (!electionName.trim()) {
+      newErrors.name = "Election name is required"
+    }
+
+    if (endDate && new Date(endDate) <= new Date()) {
+      newErrors.date = "End date must be in the future"
+    }
+
+    setErrors(newErrors)
+    return !newErrors.name && !newErrors.date
+  }
+
+  const handleSubmit = () => {
+    if (validateForm()) {
+      onDeclare(electionName.trim(), endDate)
+      setElectionName("")
+      setEndDate("")
+      setErrors({ name: "", date: "" })
+      setOpen(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="w-full bg-red-600 hover:bg-red-700">
+          <Plus className="h-4 w-4 mr-2" />
+          Declare Election
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Declare New Election</DialogTitle>
+          <DialogDescription>
+            Create a new election for the college. Students will be able to vote once the election is declared.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="election-name">Election Name</Label>
+            <Input
+              id="election-name"
+              placeholder="e.g., Student Council Elections 2024"
+              value={electionName}
+              onChange={(e) => {
+                setElectionName(e.target.value)
+                if (errors.name) setErrors((prev) => ({ ...prev, name: "" }))
+              }}
+              className={errors.name ? "border-red-500" : ""}
+            />
+            {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
+          </div>
+          <div>
+            <Label htmlFor="end-date">End Date (Optional)</Label>
+            <Input
+              id="end-date"
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value)
+                if (errors.date) setErrors((prev) => ({ ...prev, date: "" }))
+              }}
+              className={errors.date ? "border-red-500" : ""}
+              min={new Date().toISOString().split("T")[0]}
+            />
+            {errors.date && <p className="text-sm text-red-500 mt-1">{errors.date}</p>}
+          </div>
+          <Button onClick={handleSubmit} disabled={loading} className="w-full">
+            {loading ? "Declaring..." : "Declare Election"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
