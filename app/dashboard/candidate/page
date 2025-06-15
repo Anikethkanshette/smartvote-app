@@ -1,0 +1,1193 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Trophy,
+  Users,
+  BarChart3,
+  LogOut,
+  AlertCircle,
+  CheckCircle,
+  Edit,
+  Save,
+  Calendar,
+  Target,
+  TrendingUp,
+  MessageSquare,
+  Share2,
+  Download,
+  Eye,
+  Clock,
+  Award,
+  Megaphone,
+  FileText,
+  Camera,
+} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getUsers, getElections, getVotes, updateUser, getVotesForCandidate } from "@/lib/local-storage"
+
+export default function CandidateDashboard() {
+  const { userData, logout, refreshUserData } = useAuth()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+  const [activeTab, setActiveTab] = useState("overview")
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [editingManifesto, setEditingManifesto] = useState(false)
+
+  // Profile data
+  const [profileData, setProfileData] = useState({
+    username: userData?.username || "",
+    email: userData?.email || "",
+    branch: userData?.branch || "",
+    prn: userData?.prn || "",
+    manifesto: userData?.manifesto || "",
+    experience: userData?.experience || "",
+    goals: userData?.goals || "",
+    phone: "",
+    socialMedia: {
+      instagram: "",
+      twitter: "",
+      linkedin: "",
+    },
+    achievements: [] as string[],
+  })
+
+  // Election data
+  const [elections, setElections] = useState<any[]>([])
+  const [votes, setVotes] = useState<any[]>([])
+  const [voters, setVoters] = useState<any[]>([])
+  const [candidates, setCandidates] = useState<any[]>([])
+  const [campaignStats, setCampaignStats] = useState({
+    totalVotes: 0,
+    votePercentage: 0,
+    ranking: 0,
+    totalVoters: 0,
+    engagementRate: 0,
+  })
+
+  useEffect(() => {
+    if (userData) {
+      setProfileData({
+        username: userData.username || "",
+        email: userData.email || "",
+        branch: userData.branch || "",
+        prn: userData.prn || "",
+        manifesto: userData.manifesto || "",
+        experience: userData.experience || "",
+        goals: userData.goals || "",
+        phone: "",
+        socialMedia: {
+          instagram: "",
+          twitter: "",
+          linkedin: "",
+        },
+        achievements: [],
+      })
+      fetchElectionData()
+    }
+  }, [userData])
+
+  const fetchElectionData = async () => {
+    try {
+      const electionsData = getElections()
+      const usersData = getUsers()
+      const votesData = getVotes()
+
+      setElections(electionsData)
+      setVotes(votesData)
+      setVoters(usersData.filter((user) => user.role === "voter"))
+      setCandidates(usersData.filter((user) => user.role === "candidate" && user.approved))
+
+      // Calculate campaign statistics
+      if (userData && electionsData.length > 0) {
+        const activeElection = electionsData.find((e) => e.status === "ongoing")
+        if (activeElection) {
+          const candidateVotes = getVotesForCandidate(userData.uid, activeElection.id)
+          const totalVotesInElection = votesData.filter((v) => v.electionId === activeElection.id)
+          const totalVoters = usersData.filter((user) => user.role === "voter").length
+
+          // Calculate ranking
+          const candidateVoteCounts = candidates.map((candidate) => ({
+            id: candidate.uid,
+            votes: getVotesForCandidate(candidate.uid, activeElection.id).length,
+          }))
+          candidateVoteCounts.sort((a, b) => b.votes - a.votes)
+          const ranking = candidateVoteCounts.findIndex((c) => c.id === userData.uid) + 1
+
+          setCampaignStats({
+            totalVotes: candidateVotes.length,
+            votePercentage:
+              totalVotesInElection.length > 0 ? (candidateVotes.length / totalVotesInElection.length) * 100 : 0,
+            ranking: ranking || candidates.length,
+            totalVoters,
+            engagementRate: totalVoters > 0 ? (candidateVotes.length / totalVoters) * 100 : 0,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching election data:", error)
+      setMessage("Error loading election data")
+    }
+  }
+
+  const updateProfile = async () => {
+    if (!userData) return
+
+    setLoading(true)
+    try {
+      const updatedUser = updateUser(userData.uid, {
+        manifesto: profileData.manifesto,
+        experience: profileData.experience,
+        goals: profileData.goals,
+      })
+
+      if (updatedUser) {
+        await refreshUserData()
+        setMessage("Profile updated successfully!")
+        setEditingProfile(false)
+        setEditingManifesto(false)
+      } else {
+        setMessage("Error updating profile")
+      }
+    } catch (error: any) {
+      setMessage("Error updating profile: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  const getApprovalStatus = () => {
+    if (!userData) return { status: "unknown", message: "Loading..." }
+
+    if (userData.approved) {
+      return { status: "approved", message: "Your candidacy has been approved!" }
+    } else {
+      return { status: "pending", message: "Your candidacy is pending approval from administrators." }
+    }
+  }
+
+  const approvalStatus = getApprovalStatus()
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-purple-600 rounded-full">
+              <Trophy className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-purple-800">Candidate Dashboard</h1>
+              <p className="text-gray-600">Manage your campaign and track your progress</p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await logout()
+                localStorage.removeItem("currentUser")
+                router.push("/login")
+              } catch (error) {
+                console.error("Logout error:", error)
+              }
+            }}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+
+        {/* Approval Status Alert */}
+        <Alert
+          className={`mb-6 ${approvalStatus.status === "approved" ? "border-green-500 bg-green-50" : "border-yellow-500 bg-yellow-50"}`}
+        >
+          {approvalStatus.status === "approved" ? (
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          ) : (
+            <Clock className="h-4 w-4 text-yellow-600" />
+          )}
+          <AlertDescription className={approvalStatus.status === "approved" ? "text-green-700" : "text-yellow-700"}>
+            {approvalStatus.message}
+          </AlertDescription>
+        </Alert>
+
+        {message && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="campaign">Campaign</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="elections">Elections</TabsTrigger>
+            <TabsTrigger value="materials">Materials</TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Votes</CardTitle>
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">{campaignStats.totalVotes}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {campaignStats.votePercentage.toFixed(1)}% of total votes
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Current Ranking</CardTitle>
+                  <Award className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">#{campaignStats.ranking}</div>
+                  <p className="text-xs text-muted-foreground">Out of {candidates.length} candidates</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{campaignStats.engagementRate.toFixed(1)}%</div>
+                  <p className="text-xs text-muted-foreground">Voter engagement</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Approval Status</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    <Badge
+                      className={userData?.approved ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}
+                    >
+                      {userData?.approved ? "Approved" : "Pending"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Common campaign management tasks</CardDescription>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-3 gap-4">
+                <Button
+                  onClick={() => setActiveTab("profile")}
+                  className="h-20 flex-col bg-purple-600 hover:bg-purple-700"
+                >
+                  <Edit className="h-6 w-6 mb-2" />
+                  Edit Profile
+                </Button>
+                <Button onClick={() => setActiveTab("campaign")} variant="outline" className="h-20 flex-col">
+                  <Megaphone className="h-6 w-6 mb-2" />
+                  Update Campaign
+                </Button>
+                <Button onClick={() => setActiveTab("analytics")} variant="outline" className="h-20 flex-col">
+                  <BarChart3 className="h-6 w-6 mb-2" />
+                  View Analytics
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign Progress</CardTitle>
+                <CardDescription>Your campaign performance overview</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Vote Progress</span>
+                    <span>
+                      {campaignStats.totalVotes} / {campaignStats.totalVoters} voters
+                    </span>
+                  </div>
+                  <Progress value={campaignStats.engagementRate} className="h-3" />
+                </div>
+                <div className="grid md:grid-cols-2 gap-4 mt-4">
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-semibold text-purple-600 mb-2">Campaign Highlights</h4>
+                    <ul className="text-sm space-y-1 text-gray-600">
+                      <li>• Profile completion: {userData?.manifesto ? "100%" : "80%"}</li>
+                      <li>• Manifesto published: {userData?.manifesto ? "✓" : "✗"}</li>
+                      <li>• Goals defined: {userData?.goals ? "✓" : "✗"}</li>
+                      <li>• Experience shared: {userData?.experience ? "✓" : "✗"}</li>
+                    </ul>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-semibold text-green-600 mb-2">Next Steps</h4>
+                    <ul className="text-sm space-y-1 text-gray-600">
+                      <li>• {!userData?.manifesto ? "Complete your manifesto" : "Share your campaign"}</li>
+                      <li>• {!userData?.goals ? "Define your goals" : "Engage with voters"}</li>
+                      <li>• {!userData?.experience ? "Add your experience" : "Monitor analytics"}</li>
+                      <li>• Prepare for debates</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Candidate Profile</span>
+                  <Button onClick={() => setEditingProfile(!editingProfile)} variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    {editingProfile ? "Cancel" : "Edit"}
+                  </Button>
+                </CardTitle>
+                <CardDescription>Manage your candidate information and public profile</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center space-x-6">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src="/placeholder.svg" alt={userData?.username} />
+                    <AvatarFallback className="text-lg">
+                      {userData?.username
+                        ?.split(" ")
+                        .map((n) => n[0])
+                        .join("") || "CN"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold">{userData?.username}</h3>
+                    <p className="text-gray-600">
+                      {userData?.branch} • {userData?.prn}
+                    </p>
+                    <Badge className="mt-2 bg-purple-100 text-purple-800">Candidate</Badge>
+                  </div>
+                  {editingProfile && (
+                    <Button variant="outline" size="sm">
+                      <Camera className="h-4 w-4 mr-2" />
+                      Change Photo
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="username">Full Name</Label>
+                      <Input
+                        id="username"
+                        value={profileData.username}
+                        onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                        disabled={!editingProfile}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        value={profileData.email}
+                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                        disabled={!editingProfile}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="branch">Branch</Label>
+                      <Input
+                        id="branch"
+                        value={profileData.branch}
+                        onChange={(e) => setProfileData({ ...profileData, branch: e.target.value })}
+                        disabled={!editingProfile}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="prn">PRN Number</Label>
+                      <Input
+                        id="prn"
+                        value={profileData.prn}
+                        onChange={(e) => setProfileData({ ...profileData, prn: e.target.value })}
+                        disabled={!editingProfile}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                        disabled={!editingProfile}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {editingProfile && (
+                  <div className="flex space-x-4">
+                    <Button onClick={updateProfile} disabled={loading} className="bg-purple-600 hover:bg-purple-700">
+                      <Save className="h-4 w-4 mr-2" />
+                      {loading ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditingProfile(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Social Media Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Social Media & Contact</CardTitle>
+                <CardDescription>Add your social media links for better voter engagement</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="instagram">Instagram</Label>
+                    <Input
+                      id="instagram"
+                      value={profileData.socialMedia.instagram}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          socialMedia: { ...profileData.socialMedia, instagram: e.target.value },
+                        })
+                      }
+                      placeholder="@username"
+                      disabled={!editingProfile}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="twitter">Twitter</Label>
+                    <Input
+                      id="twitter"
+                      value={profileData.socialMedia.twitter}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          socialMedia: { ...profileData.socialMedia, twitter: e.target.value },
+                        })
+                      }
+                      placeholder="@username"
+                      disabled={!editingProfile}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="linkedin">LinkedIn</Label>
+                    <Input
+                      id="linkedin"
+                      value={profileData.socialMedia.linkedin}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          socialMedia: { ...profileData.socialMedia, linkedin: e.target.value },
+                        })
+                      }
+                      placeholder="linkedin.com/in/username"
+                      disabled={!editingProfile}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Campaign Tab */}
+          <TabsContent value="campaign" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Campaign Manifesto</span>
+                  <Button onClick={() => setEditingManifesto(!editingManifesto)} variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    {editingManifesto ? "Cancel" : "Edit"}
+                  </Button>
+                </CardTitle>
+                <CardDescription>Share your vision and promises with the voters</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="manifesto">Your Manifesto</Label>
+                  <Textarea
+                    id="manifesto"
+                    value={profileData.manifesto}
+                    onChange={(e) => setProfileData({ ...profileData, manifesto: e.target.value })}
+                    disabled={!editingManifesto}
+                    rows={6}
+                    placeholder="Share your vision, promises, and what you plan to achieve as a student representative..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="goals">Key Goals & Objectives</Label>
+                  <Textarea
+                    id="goals"
+                    value={profileData.goals}
+                    onChange={(e) => setProfileData({ ...profileData, goals: e.target.value })}
+                    disabled={!editingManifesto}
+                    rows={4}
+                    placeholder="List your main goals and what you want to accomplish..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="experience">Relevant Experience</Label>
+                  <Textarea
+                    id="experience"
+                    value={profileData.experience}
+                    onChange={(e) => setProfileData({ ...profileData, experience: e.target.value })}
+                    disabled={!editingManifesto}
+                    rows={4}
+                    placeholder="Share your relevant experience, leadership roles, achievements..."
+                  />
+                </div>
+
+                {editingManifesto && (
+                  <div className="flex space-x-4">
+                    <Button onClick={updateProfile} disabled={loading} className="bg-purple-600 hover:bg-purple-700">
+                      <Save className="h-4 w-4 mr-2" />
+                      {loading ? "Saving..." : "Save Campaign Info"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditingManifesto(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Campaign Strategy */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign Strategy</CardTitle>
+                <CardDescription>Plan and track your campaign activities</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Campaign Checklist</h4>
+                    <div className="space-y-2">
+                      {[
+                        { task: "Complete profile information", done: !!userData?.username },
+                        { task: "Write compelling manifesto", done: !!userData?.manifesto },
+                        { task: "Define clear goals", done: !!userData?.goals },
+                        { task: "Share relevant experience", done: !!userData?.experience },
+                        { task: "Add social media links", done: false },
+                        { task: "Create campaign materials", done: false },
+                      ].map((item, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <CheckCircle className={`h-4 w-4 ${item.done ? "text-green-600" : "text-gray-300"}`} />
+                          <span className={item.done ? "text-green-600" : "text-gray-600"}>{item.task}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Engagement Tips</h4>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>• Keep your manifesto clear and achievable</p>
+                      <p>• Highlight your unique qualifications</p>
+                      <p>• Be specific about your goals</p>
+                      <p>• Show your commitment to student welfare</p>
+                      <p>• Engage with voters through social media</p>
+                      <p>• Participate in debates and discussions</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vote Analytics</CardTitle>
+                  <CardDescription>Track your voting performance</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Total Votes Received</span>
+                      <span className="font-bold">{campaignStats.totalVotes}</span>
+                    </div>
+                    <Progress value={campaignStats.engagementRate} className="h-2" />
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Engagement Rate</span>
+                      <span>{campaignStats.engagementRate.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className="pt-4 border-t">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-600">#{campaignStats.ranking}</div>
+                        <div className="text-sm text-gray-600">Current Rank</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {campaignStats.votePercentage.toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-gray-600">Vote Share</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Competition Analysis</CardTitle>
+                  <CardDescription>See how you compare with other candidates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {candidates.slice(0, 5).map((candidate, index) => {
+                      const candidateVotes = votes.filter((v) => v.candidateId === candidate.uid).length
+                      const isCurrentUser = candidate.uid === userData?.uid
+                      return (
+                        <div
+                          key={candidate.uid}
+                          className={`flex items-center justify-between p-2 rounded ${isCurrentUser ? "bg-purple-50 border border-purple-200" : ""}`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-sm">#{index + 1}</span>
+                            <span className={`text-sm ${isCurrentUser ? "font-bold text-purple-600" : ""}`}>
+                              {isCurrentUser ? "You" : candidate.username}
+                            </span>
+                          </div>
+                          <div className="text-sm font-medium">{candidateVotes} votes</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Insights</CardTitle>
+                <CardDescription>Detailed analysis of your campaign performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="text-center p-4 border rounded-lg">
+                    <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-green-600">
+                      {campaignStats.engagementRate > 20
+                        ? "High"
+                        : campaignStats.engagementRate > 10
+                          ? "Medium"
+                          : "Low"}
+                    </div>
+                    <div className="text-sm text-gray-600">Engagement Level</div>
+                  </div>
+                  <div className="text-center p-4 border rounded-lg">
+                    <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-blue-600">
+                      {campaignStats.totalVoters - campaignStats.totalVotes}
+                    </div>
+                    <div className="text-sm text-gray-600">Potential Voters</div>
+                  </div>
+                  <div className="text-center p-4 border rounded-lg">
+                    <Target className="h-8 w-8 text-orange-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-orange-600">
+                      {Math.round(campaignStats.totalVoters * 0.5 - campaignStats.totalVotes)}
+                    </div>
+                    <div className="text-sm text-gray-600">Votes to Win</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Elections Tab */}
+          <TabsContent value="elections" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Elections</CardTitle>
+                <CardDescription>Elections you are participating in</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {elections.filter((e) => e.status === "ongoing").length > 0 ? (
+                  <div className="space-y-4">
+                    {elections
+                      .filter((e) => e.status === "ongoing")
+                      .map((election) => (
+                        <div key={election.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="text-lg font-semibold">{election.name}</h3>
+                              <p className="text-sm text-gray-600">
+                                Started: {new Date(election.startDate).toLocaleDateString()}
+                              </p>
+                              {election.endDate && (
+                                <p className="text-sm text-gray-600">
+                                  Ends: {new Date(election.endDate).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <Badge className="bg-green-100 text-green-800">Active</Badge>
+                          </div>
+
+                          <div className="grid md:grid-cols-3 gap-4 mb-4">
+                            <div className="text-center p-3 bg-purple-50 rounded-lg">
+                              <div className="text-2xl font-bold text-purple-600">
+                                {getVotesForCandidate(userData?.uid || "", election.id).length}
+                              </div>
+                              <div className="text-sm text-gray-600">Your Votes</div>
+                            </div>
+                            <div className="text-center p-3 bg-blue-50 rounded-lg">
+                              <div className="text-2xl font-bold text-blue-600">
+                                {votes.filter((v) => v.electionId === election.id).length}
+                              </div>
+                              <div className="text-sm text-gray-600">Total Votes</div>
+                            </div>
+                            <div className="text-center p-3 bg-green-50 rounded-lg">
+                              <div className="text-2xl font-bold text-green-600">
+                                {(() => {
+                                  const electionVotes = votes.filter((v) => v.electionId === election.id)
+                                  const candidateVotes = getVotesForCandidate(userData?.uid || "", election.id).length
+                                  return electionVotes.length > 0
+                                    ? ((candidateVotes / electionVotes.length) * 100).toFixed(1)
+                                    : 0
+                                })()}%
+                              </div>
+                              <div className="text-sm text-gray-600">Vote Share</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Your Performance</span>
+                              <span>
+                                {getVotesForCandidate(userData?.uid || "", election.id).length} / {voters.length}{" "}
+                                potential votes
+                              </span>
+                            </div>
+                            <Progress
+                              value={
+                                voters.length > 0
+                                  ? (getVotesForCandidate(userData?.uid || "", election.id).length / voters.length) *
+                                    100
+                                  : 0
+                              }
+                              className="h-2"
+                            />
+                          </div>
+
+                          <div className="mt-4 flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={() => setActiveTab("analytics")}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              View Analytics
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const electionResults = votes
+                                  .filter((v) => v.electionId === election.id)
+                                  .reduce((acc: any, vote) => {
+                                    acc[vote.candidateId] = (acc[vote.candidateId] || 0) + 1
+                                    return acc
+                                  }, {})
+
+                                const sortedResults = Object.entries(electionResults)
+                                  .map(([candidateId, voteCount]: [string, any]) => {
+                                    const candidate = candidates.find((c) => c.uid === candidateId)
+                                    return {
+                                      name: candidate?.username || "Unknown",
+                                      votes: voteCount,
+                                      isYou: candidateId === userData?.uid,
+                                    }
+                                  })
+                                  .sort((a, b) => b.votes - a.votes)
+
+                                let resultText = `Results for ${election.name}:\n\n`
+                                sortedResults.forEach((result, index) => {
+                                  resultText += `${index + 1}. ${result.isYou ? "👤 " : ""}${result.name}: ${result.votes} votes\n`
+                                })
+
+                                alert(resultText || "No votes cast yet.")
+                              }}
+                            >
+                              View Results
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Active Elections</h3>
+                    <p className="text-gray-500">There are currently no ongoing elections you can participate in.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Past Elections */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Past Elections</CardTitle>
+                <CardDescription>Your election history and results</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {elections.filter((e) => e.status === "ended").length > 0 ? (
+                  <div className="space-y-3">
+                    {elections
+                      .filter((e) => e.status === "ended")
+                      .map((election) => (
+                        <div key={election.id} className="flex justify-between items-center p-3 border rounded-lg">
+                          <div>
+                            <h4 className="font-medium">{election.name}</h4>
+                            <p className="text-sm text-gray-600">
+                              {new Date(election.startDate).toLocaleDateString()} -{" "}
+                              {election.endDate ? new Date(election.endDate).toLocaleDateString() : "Ongoing"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-semibold">
+                              {getVotesForCandidate(userData?.uid || "", election.id).length} votes
+                            </div>
+                            <Badge variant="secondary">Ended</Badge>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-4 text-gray-500">No past elections found.</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Materials Tab */}
+          <TabsContent value="materials" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign Materials</CardTitle>
+                <CardDescription>Create and manage your campaign materials</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Digital Materials</h4>
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const manifesto = userData?.manifesto || "No manifesto available."
+                          const blob = new Blob([manifesto], { type: "text/plain" })
+                          const url = URL.createObjectURL(blob)
+                          const link = document.createElement("a")
+                          link.href = url
+                          link.download = "manifesto.txt"
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                          URL.revokeObjectURL(url)
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Download Manifesto PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const socialMediaKit = `
+Social Media Kit for ${userData?.username}
+
+Profile Picture: [Link to profile picture]
+Cover Photo: [Link to cover photo]
+
+Sample Posts:
+- Vote for me to make a change!
+- I'm committed to serving the students.
+- Learn more about my platform at [Campaign Link]
+
+Hashtags: #Vote${userData?.username.replace(" ", "")} #StudentElections #YourCollege
+                        `.trim()
+
+                          alert(socialMediaKit)
+                        }}
+                      >
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Social Media Kit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const posterTemplate = `
+CAMPAIGN POSTER TEMPLATE
+
+[Image of ${userData?.username}]
+
+Vote ${userData?.username} for [Position]
+
+- [Key Promise 1]
+- [Key Promise 2]
+- [Key Promise 3]
+
+[Contact Information]
+                        `.trim()
+
+                          alert(posterTemplate)
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Campaign Poster Template
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Quick Actions</h4>
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const profile = `
+PUBLIC PROFILE
+
+Name: ${userData?.username}
+Branch: ${userData?.branch}
+PRN: ${userData?.prn}
+
+Manifesto:
+${userData?.manifesto}
+
+Goals:
+${userData?.goals}
+
+Experience:
+${userData?.experience}
+                        `.trim()
+
+                          alert(profile)
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview Public Profile
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const campaignLink = `https://example.com/campaign/${userData?.username.replace(" ", "")}`
+                          alert(`Share this link: ${campaignLink}`)
+                        }}
+                      >
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Share Campaign Link
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          const feedback = prompt("Enter voter feedback:")
+                          if (feedback) {
+                            alert(`Feedback received: ${feedback}`)
+                          } else {
+                            alert("No feedback entered.")
+                          }
+                        }}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Voter Feedback
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign Resources</CardTitle>
+                <CardDescription>Tools and resources to help your campaign</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="p-4 border rounded-lg text-center">
+                    <Megaphone className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                    <h4 className="font-semibold mb-2">Campaign Guidelines</h4>
+                    <p className="text-sm text-gray-600 mb-3">Learn about election rules and best practices</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const guidelines = `
+STUDENT ELECTION CAMPAIGN GUIDELINES
+
+1. ELIGIBILITY REQUIREMENTS
+   • Must be a registered student with valid PRN
+   • Minimum CGPA of 6.0 required
+   • No disciplinary actions in the past year
+   • Must have admin approval
+
+2. CAMPAIGN RULES
+   • Campaign period: 7 days before election
+   • No campaigning on election day
+   • Respectful conduct towards all candidates
+   • No false promises or misleading information
+
+3. PERMITTED ACTIVITIES
+   • Social media campaigns
+   • Poster displays in designated areas
+   • Student debates and discussions
+   • Manifesto distribution
+
+4. PROHIBITED ACTIVITIES
+   • Bribing or offering incentives
+   • Defaming other candidates
+   • Using college resources for campaigning
+   • Campaigning in restricted areas
+
+5. VIOLATION CONSEQUENCES
+   • Warning for minor violations
+   • Disqualification for serious violations
+   • Permanent ban for repeated offenses
+
+For questions, contact the Election Commission.
+                        `.trim()
+
+                        alert(guidelines)
+                      }}
+                    >
+                      View Guidelines
+                    </Button>
+                  </div>
+                  <div className="p-4 border rounded-lg text-center">
+                    <Users className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <h4 className="font-semibold mb-2">Voter Database</h4>
+                    <p className="text-sm text-gray-600 mb-3">Access voter information and demographics</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const voterStats = `
+VOTER DATABASE SUMMARY
+
+Total Registered Voters: ${voters.length}
+Votes Cast: ${votes.length}
+Turnout Rate: ${voters.length > 0 ? ((votes.length / voters.length) * 100).toFixed(1) : 0}%
+
+BRANCH BREAKDOWN:
+${voters.reduce((acc: any, voter) => {
+  const branch = voter.branch || "Unknown"
+  acc[branch] = (acc[branch] || 0) + 1
+  return acc
+}, {})}
+
+VOTING STATUS:
+• Voted: ${votes.length} students
+• Not Voted: ${voters.length - votes.length} students
+
+Note: Individual voter information is kept confidential.
+Only aggregate statistics are available to candidates.
+                        `.trim()
+
+                        alert(voterStats)
+                      }}
+                    >
+                      View Database
+                    </Button>
+                  </div>
+                  <div className="p-4 border rounded-lg text-center">
+                    <Calendar className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                    <h4 className="font-semibold mb-2">Event Calendar</h4>
+                    <p className="text-sm text-gray-600 mb-3">Important dates and campaign events</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const currentElection = elections.find((e) => e.status === "ongoing")
+                        const startDate = currentElection
+                          ? new Date(currentElection.startDate).toLocaleDateString()
+                          : "TBD"
+                        const endDate = currentElection?.endDate
+                          ? new Date(currentElection.endDate).toLocaleDateString()
+                          : "TBD"
+
+                        const calendar = `
+ELECTION CALENDAR 2024
+
+CAMPAIGN PERIOD:
+• Campaign Start: ${startDate}
+• Manifesto Submission Deadline: ${new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Candidate Debate: ${new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Campaign End: ${new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+
+VOTING PERIOD:
+• Voting Start: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Voting End: ${endDate}
+
+RESULTS:
+• Result Declaration: ${new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Winner Announcement: ${new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+
+IMPORTANT EVENTS:
+• Candidate Orientation: ${new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Public Debate: ${new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+• Final Campaign Rally: ${new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+
+All times are in IST. Check your email for updates.
+                        `.trim()
+
+                        alert(calendar)
+                      }}
+                    >
+                      View Calendar
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
