@@ -1,0 +1,255 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, Settings, Users, BarChart3, Shield, Download } from "lucide-react"
+
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [credentials, setCredentials] = useState({ username: "", password: "" })
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault()
+    // Simple authentication check (in real app, this would be secure)
+    if (credentials.username === "admin" && credentials.password === "admin123") {
+      setIsAuthenticated(true)
+    } else {
+      alert("Invalid credentials")
+    }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Shield className="mr-2 h-5 w-5" />
+              Admin Login
+            </CardTitle>
+            <CardDescription>Enter your credentials to access the admin panel</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={credentials.username}
+                  onChange={(e) => setCredentials((prev) => ({ ...prev, username: e.target.value }))}
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={credentials.password}
+                  onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder="Enter password"
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                Login
+              </Button>
+              <p className="text-xs text-gray-500 text-center">Demo credentials: admin / admin123</p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <Link href="/" className="flex items-center space-x-2">
+              <ArrowLeft className="h-5 w-5" />
+              <span>Back to Home</span>
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+            <Button onClick={() => setIsAuthenticated(false)} variant="outline">
+              Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="candidates">Candidates</TabsTrigger>
+            <TabsTrigger value="voters">Voters</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Votes</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">1,247</div>
+                  <p className="text-xs text-muted-foreground">+23 from last hour</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Registered Voters</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">2,180</div>
+                  <p className="text-xs text-muted-foreground">57.2% turnout</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Candidates</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">14</div>
+                  <p className="text-xs text-muted-foreground">Across 4 positions</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Election Status</CardTitle>
+                  <Badge className="bg-green-100 text-green-800">Active</Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">Live</div>
+                  <p className="text-xs text-muted-foreground">6 hours remaining</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Common administrative tasks</CardDescription>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-3 gap-4">
+                <Button className="h-20 flex-col">
+                  <Download className="h-6 w-6 mb-2" />
+                  Export Results
+                </Button>
+                <Button variant="outline" className="h-20 flex-col">
+                  <Settings className="h-6 w-6 mb-2" />
+                  Election Settings
+                </Button>
+                <Button variant="outline" className="h-20 flex-col">
+                  <Users className="h-6 w-6 mb-2" />
+                  Manage Voters
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="candidates" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Candidate Management</CardTitle>
+                <CardDescription>Manage candidates and their information</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {["President", "Vice President", "Secretary", "Treasurer"].map((position) => (
+                    <div key={position} className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2">{position}</h4>
+                      <div className="text-sm text-gray-600">Candidates registered and verified for this position</div>
+                      <Button size="sm" className="mt-2">
+                        Manage {position} Candidates
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="voters" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Voter Management</CardTitle>
+                <CardDescription>Manage registered voters and voting eligibility</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2">Registered Voters</h4>
+                      <div className="text-2xl font-bold">2,180</div>
+                      <div className="text-sm text-gray-600">Total eligible voters</div>
+                    </div>
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2">Votes Cast</h4>
+                      <div className="text-2xl font-bold">1,247</div>
+                      <div className="text-sm text-gray-600">Participation rate: 57.2%</div>
+                    </div>
+                  </div>
+                  <Button>Export Voter List</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Election Settings</CardTitle>
+                <CardDescription>Configure election parameters and security settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Election Timeline</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Voting Start:</span>
+                        <span>Jan 29, 2024 9:00 AM</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Voting End:</span>
+                        <span>Jan 30, 2024 6:00 PM</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Security Settings</h4>
+                    <div className="space-y-2">
+                      <Badge className="bg-green-100 text-green-800">Encryption: Enabled</Badge>
+                      <Badge className="bg-green-100 text-green-800">Anonymous Voting: Active</Badge>
+                      <Badge className="bg-green-100 text-green-800">Audit Trail: Enabled</Badge>
+                    </div>
+                  </div>
+                </div>
+                <Button>Update Settings</Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  )
+}
