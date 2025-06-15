@@ -1,0 +1,307 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Vote, Users, Trophy, LogOut, AlertCircle, CheckCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getUsers, getElections, hasUserVoted, castVote as saveVote, getVotesByElection } from "@/lib/local-storage"
+
+export default function VoterDashboard() {
+  const { userData, logout } = useAuth()
+  const [candidates, setCandidates] = useState<any[]>([])
+  const [elections, setElections] = useState<any[]>([])
+  const [selectedCandidate, setSelectedCandidate] = useState("")
+  const [hasVoted, setHasVoted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState("")
+  const [activeTab, setActiveTab] = useState("vote")
+
+  const router = useRouter()
+
+  useEffect(() => {
+    fetchData()
+  }, [userData])
+
+  const fetchData = async () => {
+    if (!userData) return
+
+    try {
+      // Fetch approved candidates from local storage
+      const users = getUsers()
+      const approvedCandidates = users.filter((user) => user.role === "candidate" && user.approved)
+      setCandidates(approvedCandidates)
+
+      // Fetch ongoing elections from local storage
+      const electionsData = getElections()
+      const ongoingElections = electionsData.filter((election) => election.status === "ongoing")
+      setElections(ongoingElections)
+
+      // Check if user has already voted
+      if (ongoingElections.length > 0) {
+        const electionId = ongoingElections[0].id
+        const hasVoted = hasUserVoted(userData.uid, electionId)
+        setHasVoted(hasVoted)
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error)
+    }
+  }
+
+  const castVote = async () => {
+    if (!selectedCandidate || !userData) return
+
+    setLoading(true)
+    try {
+      const electionId = elections[0]?.id
+      if (!electionId) {
+        setMessage("No active election found")
+        setLoading(false)
+        return
+      }
+
+      // Save vote using local storage
+      saveVote({
+        voterId: userData.uid,
+        electionId,
+        candidateId: selectedCandidate,
+      })
+
+      setHasVoted(true)
+      setMessage("Vote cast successfully! Thank you for participating.")
+    } catch (error: any) {
+      setMessage("Error casting vote: " + error.message)
+    }
+    setLoading(false)
+  }
+
+  const getResults = async () => {
+    try {
+      const electionId = elections[0]?.id
+      if (!electionId) return
+
+      const electionVotes = getVotesByElection(electionId)
+      const voteCounts: Record<string, number> = {}
+
+      electionVotes.forEach((vote) => {
+        const candidateId = vote.candidateId
+        voteCounts[candidateId] = (voteCounts[candidateId] || 0) + 1
+      })
+
+      let resultText = "Current Results:\n"
+      for (const candidateId in voteCounts) {
+        const candidate = candidates.find((c) => c.uid === candidateId)
+        const candidateName = candidate?.username || "Unknown"
+        resultText += `${candidateName}: ${voteCounts[candidateId]} votes\n`
+      }
+
+      alert(resultText || "No votes cast yet.")
+    } catch (error: any) {
+      setMessage("Error fetching results: " + error.message)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 bg-green-600 rounded-full">
+              <Vote className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-green-700">Voter Dashboard</h1>
+              <p className="text-gray-600">Cast your vote and view election information</p>
+            </div>
+          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await logout()
+                localStorage.removeItem("currentUser")
+                router.push("/login")
+              } catch (error) {
+                console.error("Logout error:", error)
+              }
+            }}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+
+        {message && (
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Navigation Tabs */}
+        <div className="flex space-x-4 mb-6">
+          <Button
+            variant={activeTab === "vote" ? "default" : "outline"}
+            onClick={() => setActiveTab("vote")}
+            className="flex items-center space-x-2"
+          >
+            <Vote className="h-4 w-4" />
+            <span>Vote</span>
+          </Button>
+          <Button
+            variant={activeTab === "candidates" ? "default" : "outline"}
+            onClick={() => setActiveTab("candidates")}
+            className="flex items-center space-x-2"
+          >
+            <Users className="h-4 w-4" />
+            <span>Candidates</span>
+          </Button>
+          <Button
+            variant={activeTab === "results" ? "default" : "outline"}
+            onClick={() => setActiveTab("results")}
+            className="flex items-center space-x-2"
+          >
+            <Trophy className="h-4 w-4" />
+            <span>Results</span>
+          </Button>
+        </div>
+
+        {/* Vote Tab */}
+        {activeTab === "vote" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Vote className="h-5 w-5" />
+                <span>Cast Your Vote</span>
+              </CardTitle>
+              <CardDescription>
+                {hasVoted ? "You have already voted in this election." : "Select a candidate and cast your vote."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hasVoted ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-green-600 mb-2">Vote Submitted!</h3>
+                  <p className="text-gray-600">Thank you for participating in the election.</p>
+                </div>
+              ) : elections.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No Active Elections</h3>
+                  <p className="text-gray-600">There are currently no ongoing elections.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <h4 className="font-semibold">Select a candidate:</h4>
+                  <RadioGroup value={selectedCandidate} onValueChange={setSelectedCandidate}>
+                    <div className="space-y-4">
+                      {candidates.map((candidate) => (
+                        <div
+                          key={candidate.uid}
+                          className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-gray-50"
+                        >
+                          <RadioGroupItem value={candidate.uid} id={candidate.uid} />
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={candidate.photoURL || "/placeholder.svg"} alt={candidate.username} />
+                            <AvatarFallback>
+                              {candidate.username
+                                ?.split(" ")
+                                .map((n: string) => n[0])
+                                .join("") || "CN"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <Label htmlFor={candidate.uid} className="flex-1 cursor-pointer">
+                            <div>
+                              <div className="font-medium">{candidate.username}</div>
+                              <div className="text-sm text-gray-600">{candidate.branch}</div>
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                  <Button
+                    onClick={castVote}
+                    disabled={!selectedCandidate || loading}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    size="lg"
+                  >
+                    {loading ? "Casting Vote..." : "Cast My Vote"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Candidates Tab */}
+        {activeTab === "candidates" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Approved Candidates</span>
+              </CardTitle>
+              <CardDescription>View all candidates participating in the election.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {candidates.length === 0 ? (
+                <p className="text-center py-8 text-gray-600">No approved candidates found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {candidates.map((candidate) => (
+                    <div key={candidate.uid} className="flex items-center space-x-4 p-4 border rounded-lg">
+                      <Avatar className="h-16 w-16">
+                        <AvatarImage src={candidate.photoURL || "/placeholder.svg"} alt={candidate.username} />
+                        <AvatarFallback>
+                          {candidate.username
+                            ?.split(" ")
+                            .map((n: string) => n[0])
+                            .join("") || "CN"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg">{candidate.username}</h4>
+                        <p className="text-gray-600">{candidate.branch}</p>
+                        <p className="text-sm text-gray-500">{candidate.email}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Results Tab */}
+        {activeTab === "results" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Trophy className="h-5 w-5" />
+                <span>Election Results</span>
+              </CardTitle>
+              <CardDescription>View current election results.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Button onClick={getResults} className="bg-purple-600 hover:bg-purple-700">
+                  View Current Results
+                </Button>
+                <p className="text-sm text-gray-600 mt-4">Results will be displayed in a popup window.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
