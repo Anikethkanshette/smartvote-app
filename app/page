@@ -1,0 +1,157 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Users, Vote, Trophy, Loader2 } from "lucide-react"
+
+export default function HomePage() {
+  const { user, userData, loading } = useAuth()
+  const router = useRouter()
+  const [redirecting, setRedirecting] = useState(false)
+
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        // Not authenticated, stay on landing page
+        return
+      }
+
+      if (user && userData) {
+        // Authenticated with user data, redirect to appropriate dashboard
+        setRedirecting(true)
+        const timer = setTimeout(() => {
+          switch (userData.role) {
+            case "super_admin":
+              router.push("/dashboard/super-admin")
+              break
+            case "admin":
+              router.push("/dashboard/admin")
+              break
+            case "voter":
+              router.push("/dashboard/voter")
+              break
+            case "candidate":
+              router.push("/dashboard/candidate")
+              break
+            default:
+              router.push("/login")
+          }
+        }, 1000)
+
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [user, userData, loading, router])
+
+  if (loading || (user && redirecting)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
+          <p className="text-gray-600">{loading ? "Loading..." : "Redirecting to your dashboard..."}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show landing page for non-authenticated users
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-2">
+              <Vote className="h-8 w-8 text-blue-600" />
+              <h1 className="text-2xl font-bold text-gray-900">SmartVote</h1>
+            </div>
+            <nav className="flex space-x-4">
+              <Link href="/login">
+                <Button>Login</Button>
+              </Link>
+              <Link href="/register">
+                <Button variant="outline">Register</Button>
+              </Link>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center mb-12">
+          <Badge className="mb-4 bg-green-100 text-green-800 hover:bg-green-100">Election System</Badge>
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">College Election Management System</h2>
+          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            A comprehensive platform for managing college elections with role-based access, secure voting, and real-time
+            results.
+          </p>
+          <div className="flex justify-center space-x-4">
+            <Link href="/login">
+              <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+                <Vote className="mr-2 h-5 w-5" />
+                Get Started
+              </Button>
+            </Link>
+            <Link href="/register">
+              <Button size="lg" variant="outline">
+                <Users className="mr-2 h-5 w-5" />
+                Register Now
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Features */}
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Users className="mr-2 h-5 w-5 text-blue-600" />
+                Role-Based Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">
+                Separate dashboards for Super Admins, Admins, Candidates, and Voters with appropriate permissions.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Vote className="mr-2 h-5 w-5 text-green-600" />
+                Secure Voting
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">
+                Firebase-powered authentication and secure voting system with real-time vote tracking.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Trophy className="mr-2 h-5 w-5 text-yellow-600" />
+                Live Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">
+                Real-time election results with comprehensive analytics and reporting features.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  )
+}
